@@ -1,0 +1,182 @@
+Program.Sub.ScreenSU.Start
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'CRM Populate hook
+'Change Script 4 button to say "Pick List"
+'new crm.net hook 42900
+'F.Intrinsic.Control.If(V.Caller.Hook,=,30600)
+F.Intrinsic.Control.If(V.Caller.Hook,=,42900)
+	V.Passed.CRM-cmdGAB-3.Set("Pick List")
+F.Intrinsic.Control.EndIf
+
+'CRM Script 4 button hook
+'new crm 2013.2 hook
+F.Intrinsic.Control.If(V.Caller.Hook,=,42921)
+'F.Intrinsic.Control.If(V.Caller.Hook,=,30621)
+	F.Intrinsic.Control.CallSub(Crm)
+F.Intrinsic.Control.EndIf
+
+'ORD055A Populate Hook
+F.Intrinsic.Control.If(V.Caller.Hook,=,38601)
+F.Intrinsic.Control.AndIf(V.Passed.CALLING-PGM,=,"SYS050")
+	V.Passed.777777.Set(1)
+F.Intrinsic.Control.EndIf
+
+'ORD055B Populate Hook
+F.Intrinsic.Control.If(V.Caller.Hook,=,38621)
+F.Intrinsic.Control.AndIf(V.Passed.CALLING-PGM,=,"SYS050")
+	F.Intrinsic.Control.CallSub(Populateord055b)
+F.Intrinsic.Control.EndIf
+
+'Shipment Picklist Beginning Order Browser hook
+F.Intrinsic.Control.If(V.Caller.Hook,=,38622)
+	F.Intrinsic.Control.CallSub(Picklistorderbrowser)
+F.Intrinsic.Control.EndIf
+
+'Shipment Picklist Ending Order Browser Hook
+F.Intrinsic.Control.If(V.Caller.Hook,=,38623)
+	F.Intrinsic.Control.CallSub(Picklistorderbrowser)
+F.Intrinsic.Control.EndIf
+
+
+'Shipment Picklist Ok Button On First Form
+'Deletes file with customer name when not ran through CRM.
+F.Intrinsic.Control.If(V.Caller.Hook,=,38602)
+	F.Intrinsic.Control.CallSub(Clearcrm)
+F.Intrinsic.Control.EndIf
+
+Program.Sub.Main.End
+
+Program.Sub.CRM.Start
+'If the customer is selected on CRM, pass the customer number and call shipment picklist
+F.Intrinsic.Control.If(Variable.Passed.DATA-CRM-CompID,<>,"")
+	V.Local.sTempFile.Declare(String)
+	V.Local.iFile.Declare(Long)
+	F.Intrinsic.String.Concat(V.Caller.TempDir,"\crmpicklist",V.Caller.Terminal,".dat",V.Local.sTempFile)
+	F.Intrinsic.File.GetHandle(V.Local.iFile)
+	F.Intrinsic.File.OpenForWrite(V.Local.sTempFile,V.Local.iFile)
+	F.Intrinsic.File.WriteLine(V.Local.iFile,Variable.Passed.DATA-CRM-CompID)
+	F.Intrinsic.File.CloseFile(V.Local.iFile)
+	'Function.Intrinsic.Debug.CALLWRAPPERDEBUGENABLE
+	F.Global.General.CallWrapperSync(910201,"*!*ZDR*!*!*!*!*ZDR*!*!*!Y!*!*!*ZDR*!*!*!*!*ZDR*!*!*!Y")
+F.Intrinsic.Control.EndIf
+
+Program.Sub.CRM.End
+
+Program.Sub.PicklistOrderBrowser.Start
+'Override the standard browser and show only order numbers for the customer selected in CRM.
+
+'Open the Database Connection
+F.ODBC.Connection!Con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+V.Local.sTempFile.Declare(String)
+V.Local.iFile.Declare(Long)
+V.Local.sCustomer.Declare(String)
+V.Local.bFileExists.Declare(Boolean)
+
+V.Local.sTitle.Declare(String)
+V.Local.sSQL.Declare(String)
+
+V.Local.sTitles.Declare
+V.Local.iWidths.Declare
+V.Local.sFormat.Declare
+V.Local.sAlign.Declare
+V.Local.sRet.Declare
+
+
+F.Intrinsic.String.Concat(V.Caller.TempDir,"\crmpicklist",V.Caller.Terminal,".dat",V.Local.sTempFile)
+F.Intrinsic.File.Exists(V.Local.sTempFile,V.Local.bFileExists)
+
+F.Intrinsic.Control.If(V.Local.bFileExists,=,True)
+	F.Intrinsic.File.GetHandle(V.Local.iFile)
+	F.Intrinsic.File.OpenForRead(V.Local.sTempFile,V.Local.iFile)
+	F.Intrinsic.File.ReadFile(V.Local.iFile,V.Local.sCustomer)
+	F.Intrinsic.String.Replace(V.Local.sCustomer,V.Ambient.NewLine,"",V.Local.sCustomer)
+	F.Intrinsic.String.RPad(V.Local.sCustomer," ",6,V.Local.sCustomer)
+	F.Intrinsic.File.CloseFile(V.Local.iFile)
+	
+	V.Passed.777777.Set(1)
+	
+	F.Intrinsic.String.Concat("Sales Orders for ",V.Local.sCustomer,V.Local.sTitle)
+	
+	F.Intrinsic.String.Split("Order #*!*Date Due*!*Purchase Order*!*Address1*!*City*!*State*!*Zip","*!*",V.Local.sTitles)
+	F.Intrinsic.String.Split("1000*!*1000*!*2000*!*2500*!*1500*!*500*!*1000","*!*",V.Local.iWidths)
+	F.Intrinsic.String.Split("*!**!**!**!**!**!*","*!*",V.Local.sFormat)
+	F.Intrinsic.String.Split("0*!*0*!*0*!*0*!*0*!*0*!*0","*!*",V.Local.sAlign)
+	
+	V.Local.sSql.Set("Select T1.ORDER_NO, T1.DATE_DUE, T1.CUSTOMER_PO,")
+	F.Intrinsic.String.Concat(V.Local.sSql," T2.ADDRESS_1_SHIP, T2.CITY_SHIP, T2.STATE_SHIP, T2.CODE_ZIP_SHIP",V.Local.sSql)
+	F.Intrinsic.String.Concat(V.Local.sSql," From V_ORDER_HEADER T1",V.Local.sSql)
+	F.Intrinsic.String.Concat(V.Local.sSql," Left Outer Join V_ORDER_SHIP_TO T2",V.Local.sSql)
+	F.Intrinsic.String.Concat(V.Local.sSql," on T2.ORDER_NO = T1.ORDER_NO",V.Local.sSql)
+	F.Intrinsic.String.Concat(V.Local.sSql," and T2.ORDER_SHIP_ID = T1.SHIP_ID",V.Local.sSql)
+	F.Intrinsic.String.Concat(V.Local.sSql," Where T1.CUSTOMER = '",V.Local.sCustomer,"'",V.Local.sSql)
+	F.Intrinsic.String.Concat(V.Local.sSql," and T1.ORDER_SHIP_ID = '' and T2.ORDER_SHIP_ID = ''",V.Local.sSql)
+	F.Intrinsic.String.Concat(V.Local.sSql," Order By T1.ORDER_NO",V.Local.sSql)
+	
+	F.Intrinsic.UI.Browser(V.Local.sTitle,"Con",V.Local.sSql,V.Local.sTitles,V.Local.iWidths,10700,5000,V.Local.sFormat,V.Local.sAlign,V.Local.sRet)
+	
+	F.Intrinsic.Control.If(V.Local.sRet,<>,"***CANCEL***")
+		V.Local.sColumns.Declare(String)
+		F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sColumns)
+		'Shipment Picklist Beginning Order Browser hook
+		F.Intrinsic.Control.If(V.Caller.Hook,=,38622)
+			V.Passed.000031.Set(V.Local.sColumns(0))
+		F.Intrinsic.Control.EndIf
+		'Shipment Picklist Ending Order Browser Hook
+		F.Intrinsic.Control.If(V.Caller.Hook,=,38623)
+			V.Passed.000032.Set(V.Local.sColumns(0))
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+Program.Sub.PicklistOrderBrowser.End
+
+Program.Sub.PopulateORD055B.Start
+'When ORD055B is populated, open the crmpicklistttt.dat file to determine
+'what customer should be on the screen
+V.Local.sTempFile.Declare(String)
+V.Local.iFile.Declare(Long)
+V.Local.sCustomer.Declare(String)
+F.Intrinsic.String.Concat(V.Caller.TempDir,"\crmpicklist",V.Caller.Terminal,".dat",V.Local.sTempFile)
+F.Intrinsic.File.GetHandle(V.Local.iFile)
+F.Intrinsic.File.OpenForRead(V.Local.sTempFile,V.Local.iFile)
+F.Intrinsic.File.ReadFile(V.Local.iFile,V.Local.sCustomer)
+F.Intrinsic.String.Replace(V.Local.sCustomer,V.Ambient.NewLine,"",V.Local.sCustomer)
+V.Passed.000001.Set("N")
+V.Passed.000041.Set(V.Local.sCustomer)
+V.Passed.000044.Set(V.Local.sCustomer)
+F.Intrinsic.File.CloseFile(V.Local.iFile)
+
+Program.Sub.PopulateORD055B.End
+
+Program.Sub.ClearCRM.Start
+'If the customer is selected on CRM, pass the customer number and call shipment picklist
+V.Local.sTempFile.Declare(String)
+V.Local.iFile.Declare(Long)
+
+F.Intrinsic.String.Concat(V.Caller.TempDir,"\crmpicklist",V.Caller.Terminal,".dat",V.Local.sTempFile)
+F.Intrinsic.File.DeleteFile(V.Local.sTempFile)
+
+
+Program.Sub.ClearCRM.End
+
+Program.Sub.Comments.Start
+${$0$}$ATG_SHIPMENT-PICKLIST-FROM-CRM$}$LML$}$6/11/2012
+${$1$}$$}$$}$6$}$42921$}$CRM.NET-GAB4$}$4/25/2016 9:00:02 AM$}$(Program: Global_Shop_CRM.exe; Screen: )
+
+${$1$}$$}$$}$5$}$42900$}$CRM.NET-ENTRY$}$4/25/2016 8:59:43 AM$}$(Program: Global_Shop_CRM.exe; Screen: )
+
+${$1$}$$}$$}$4$}$38602$}$OK button$}$4/25/2016 8:59:08 AM$}$(Program: ORD055; Screen: ORD055A)
+
+${$1$}$$}$$}$3$}$38623$}$Ending Order Number Browser (ORD055)$}$6/11/2012 9:52:01 PM$}$
+${$1$}$$}$$}$2$}$38622$}$Beginning Order Number Browser (ORD055)$}$6/11/2012 9:51:37 PM$}$
+${$1$}$$}$$}$0$}$30621$}$Script 4 Hook (CRM)$}$6/11/2012 9:47:15 PM$}$
+${$3$}$0$}$$}$-1$}$-1$}$$}$1/1/1900$}$Call shipment picklist from CRM if a customer is selected. The order number browsers on the shipment pick list screen will pull list of orders that are only for customer selected on CRM.
+Program.Sub.Comments.End
+
